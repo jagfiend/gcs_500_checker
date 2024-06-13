@@ -1,0 +1,1 @@
+Go script to check Google Search Console 500 export for actual 500 errors.

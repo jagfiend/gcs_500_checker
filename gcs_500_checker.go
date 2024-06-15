@@ -3,14 +3,15 @@ package main
 import (
 	"encoding/csv"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 )
 
 func main() {
-	fptr := flag.String("filepath", "maybe500s.csv", "Absolute path to CSV of potential 500s exported from Google Search Console")
+	// open given file
+	fptr := flag.String("filepath", "maybe500s.csv", "filepath of export")
 	
 	flag.Parse()
 
@@ -22,6 +23,7 @@ func main() {
 
 	defer file.Close()
 
+	// setup reader of given file
 	reader := csv.NewReader(file)
 
 	rows, err := reader.ReadAll()
@@ -30,23 +32,39 @@ func main() {
 		log.Fatal(err)
 	}
 
-	newFile, err := os.Create("actual500s.csv")
+	// setup new files
+	actual500s, err := os.Create("actual500s.csv")
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	defer newFile.Close()
+	defer actual500s.Close()
 
-	writer := csv.NewWriter(newFile)
+	not500s, err := os.Create("not500s.csv")
 
-	defer writer.Flush()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer not500s.Close()
+
+	// setup writers
+	writerActuals := csv.NewWriter(actual500s)
+
+	defer writerActuals.Flush()
+
+	writerNots := csv.NewWriter(not500s)
+
+	defer writerNots.Flush()
 
 	headers := []string{"url", "status"}
 
-	writer.Write(headers)
+	writerActuals.Write(headers)
+	writerNots.Write(headers)
 
-	count := 0
+	count500s := 0
+	countNots := 0
 
 	for idx, row := range rows {
 		// ignore header
@@ -59,20 +77,23 @@ func main() {
 		res, err := http.Get(url)
 
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			continue
 		}
 
 		defer res.Body.Close()
 
-		statusCode := res.StatusCode
+		statusCode := strconv.Itoa(res.StatusCode)
+		newRow := []string{url, statusCode}
 
-		if statusCode == 500 {
-			newRow := []string{url, "500"}
-			writer.Write(newRow)
-			count++
+		if statusCode == "500" {
+			writerActuals.Write(newRow)
+			count500s++
+		} else {
+			writerNots.Write(newRow)
+			countNots++
 		}
 	}
 
-	fmt.Printf("Done! Found %d actual 500 errors", count)
+	log.Printf("Done! Found %d actual 500 errors and %d not", count500s, countNots)
 }
